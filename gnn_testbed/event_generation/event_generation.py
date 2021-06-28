@@ -11,8 +11,9 @@ from .detector import (
     sample_cylinder_volume,
     sample_cylinder_surface,
     sample_direction,
+    generate_noise,
+    trigger,
 )
-from .utils import generate_noise, trigger
 
 from .mc_record import MCRecord
 from .photon_propagation import PhotonSource, dejit_sources, generate_photons

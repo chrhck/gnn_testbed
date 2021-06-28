@@ -1,5 +1,5 @@
 """Collection of feature extraction functions."""
-import awkwards as ak
+import awkward as ak
 import numpy as np
 
 

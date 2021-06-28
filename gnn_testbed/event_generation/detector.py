@@ -242,3 +242,35 @@ def sample_direction(n_samples, rng=np.random.RandomState(1337)):
     samples[:, 2] = np.cos(theta)
 
     return samples
+
+
+def generate_noise(det, time_range, rng=np.random.RandomState(1337)):
+    """Generate detector noise in a time range."""
+    all_times_det = []
+    dT = np.diff(time_range)
+    for idom in range(len(det.modules)):
+        noise_amp = rng.poisson(det.modules[idom].noise_rate * dT)
+        times_det = rng.uniform(*time_range, size=noise_amp)
+        all_times_det.append(times_det)
+
+    return ak.sort(ak.Array(all_times_det))
+
+
+def trigger(det, event_times, mod_thresh=8, phot_thres=5):
+    """
+    Check a simple multiplicity condition.
+
+    Trigger is true when at least `mod_thresh` modules have measured more than `phot_thres` photons.
+
+    Parameters:
+        det: Detector
+        event_times: ak.array
+        mod_thresh: int
+            Threshold for the number of modules which have detected `phot_thres` photons
+        phot_thres: int
+            Threshold for the number of photons per module
+    """
+    hits_per_module = ak.count(event_times, axis=1)
+    if ak.sum((hits_per_module > phot_thres)) > mod_thresh:
+        return True
+    return False
