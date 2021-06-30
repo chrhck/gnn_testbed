@@ -32,9 +32,10 @@ RUN apt-get update && \
 
 FROM node as pip_stuff
 RUN pip install torch-scatter torch-sparse torch-cluster torch-spline-conv -f https://pytorch-geometric.com/whl/torch-1.8.0+cu111.html
-RUN pip install torch-geometric jupyterlab awkward numba seaborn tqdm ipywidgets aquirdturtle_collapsible_headings plotly
+RUN pip install torch-geometric jupyterlab awkward numba seaborn tqdm ipywidgets aquirdturtle_collapsible_headings plotly tensorboard
 RUN PATH=/usr/local/lib/nodejs/node-v14.17.0-linux-x64/bin:$PATH jupyter labextension install jupyterlab-plotly
 
 CMD PATH=/usr/local/lib/nodejs/node-v14.17.0-linux-x64/bin:$PATH \
     PYTHONPATH=$PYTHONPATH:/opt/PROPOSAL/build/src/pyPROPOSAL \
+    tensorboard --port 8008 --logdir=/app/runs --bind_all & \
     jupyter lab --port=8888 --no-browser --ip=0.0.0.0 --allow-root --notebook-dir=/app
