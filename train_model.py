@@ -29,7 +29,7 @@ from gnn_testbed.event_generation import (
 
 from gnn_testbed.feature_generation import get_features
 from gnn_testbed.event_generation.utils import track_isects_cyl, is_in_cylinder
-from gnn_testbed.models import train_model, TAGStack, evaluate_model
+from gnn_testbed.models import train_model, TAGStack, evaluate_model, TAGStackPool
 
 if torch.cuda.is_available():
     device = torch.device("cuda")
@@ -45,7 +45,10 @@ parser.add_argument("--swa_lr", dest="swa_lr", default=0.001, type=float)
 parser.add_argument("--use_skip", dest="use_skip", action="store_true")
 parser.add_argument("--use_bn", dest="use_bn", action="store_true")
 parser.add_argument(
-    "--model", dest="model", choices=["shallow", "shallow3", "deep"], default="shallow"
+    "--model",
+    dest="model",
+    choices=["shallow", "shallow_pool", "shallow3", "shallow2", "deep", "deep2"],
+    default="shallow",
 )
 parser.add_argument(
     "--scheduler",
@@ -112,6 +115,32 @@ if args.model == "shallow":
         use_batch_norm=args.use_bn,
         use_skip=args.use_skip,
     ).to(device)
+elif args.model == "shallow_pool":
+    model = TAGStackPool(
+        [
+            (64, 5, 0.75),
+            (128, 4, 0.75),
+            (256, 3, 0.75),
+            (512, 2, 0.75),
+            (1024, 1, 0.75),
+        ],
+        [512, 512],
+        num_node_features=15,
+        num_classes=5,
+        use_batch_norm=args.use_bn,
+        use_skip=args.use_skip,
+    ).to(device)
+
+
+elif args.model == "shallow2":
+    model = TAGStack(
+        [(128, 2), (128, 2), (128, 2), (128, 2), (128, 2)],
+        [512, 512],
+        num_node_features=15,
+        num_classes=5,
+        use_batch_norm=args.use_bn,
+        use_skip=args.use_skip,
+    ).to(device)
 elif args.model == "shallow3":
     model = TAGStack(
         [(256, 3), (256, 3), (256, 3), (256, 3), (256, 3)],
@@ -125,6 +154,16 @@ elif args.model == "shallow3":
 elif args.model == "deep":
     model = TAGStack(
         [(32, 5), (64, 4), (128, 3), (128, 3), (128, 3), (256, 2), (512, 1)],
+        [512, 512],
+        num_node_features=15,
+        num_classes=5,
+        use_batch_norm=args.use_bn,
+        use_skip=args.use_skip,
+    ).to(device)
+
+elif args.model == "deep2":
+    model = TAGStack(
+        [(32, 5), (64, 4), (64, 4), (128, 3), (256, 2), (256, 2), (512, 1)],
         [512, 512],
         num_node_features=15,
         num_classes=5,

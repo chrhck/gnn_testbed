@@ -26,7 +26,7 @@ def train_model(
 
     elif scheduler == "ReduceLROnPlateau":
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, "max", factor=0.5, verbose=True, patience=5
+            optimizer, "max", factor=0.5, verbose=True, patience=5, min_lr=1e-5
         )
 
         def update_scheduler(acc):
