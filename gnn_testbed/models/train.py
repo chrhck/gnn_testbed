@@ -1,5 +1,6 @@
 """Utilities for training."""
 import torch
+from .evaluation import evaluate_model, predicted_class_hist, plot_confusion
 
 
 def train_model(
@@ -11,20 +12,31 @@ def train_model(
     swa=False,
     swa_lr=0.001,
     writer=None,
+    scheduler="CosineAnnealingLR",
+    n_classes=5,
 ):
     swa_model = torch.optim.swa_utils.AveragedModel(model)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = torch.nn.CrossEntropyLoss()
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs)
+    if scheduler == "CosineAnnealingLR":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs)
+
+        def update_scheduler(_):
+            scheduler.step()
+
+    elif scheduler == "ReduceLROnPlateau":
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, "max", factor=0.5, verbose=True, patience=5
+        )
+
+        def update_scheduler(acc):
+            scheduler.step(acc)
+
+    else:
+        raise NotImplementedError(f"scheduler {scheduler} not understood")
     if swa:
         swa_start = int(0.7 * epochs)
         swa_scheduler = torch.optim.swa_utils.SWALR(optimizer, swa_lr=swa_lr)
-
-    """
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, "max", factor=0.5, verbose=True
-    )
-    """
 
     def get_loss(model, data):
         out = model(
@@ -82,35 +94,21 @@ def train_model(
             writer.add_scalar("Loss/train", train_loss, epoch)
             writer.add_scalar("Loss/test", test_loss, epoch)
             writer.add_scalar("LR", optimizer.param_groups[0]["lr"], epoch)
+
+            preds, truths, scores = evaluate_model(model, test_loader)
+            conf_matrix = predicted_class_hist(truths, preds, n_classes)
+            fig = plot_confusion(conf_matrix)
+            writer.add_figure("confusion_truth", fig, epoch)
+
         # scheduler.step(test_acc)
         if swa and (epoch > swa_start):
             swa_model.update_parameters(model)
             swa_scheduler.step()
         else:
-            scheduler.step()
+            update_scheduler(test_acc)
 
     # torch.optim.swa_utils.update_bn(train_loader, swa_model)
     if swa:
         return swa_model
     else:
         return model
-
-
-def evaluate_model(model, loader):
-    preds = []
-    truths = []
-    scores = []
-
-    with torch.no_grad():
-
-        for data in loader:  # Iterate in batches over the training/test dataset.
-            out = model(data.x, data.edge_index, data.batch)
-            pred = out.argmax(dim=1)
-            preds.append(pred)
-            truths.append(data.y)
-            scores.append(out)
-
-        preds = torch.cat(preds).cpu()
-        truths = torch.cat(truths).cpu()
-        scores = torch.cat(scores).cpu()
-    return preds, truths, scores
