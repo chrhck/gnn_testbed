@@ -21,7 +21,7 @@ from .photon_propagation import PhotonSource, dejit_sources, generate_photons
 logger = logging.getLogger(__name__)
 
 
-def generate_cascade(det, pos, t0, energy, d0=33, seed=31337):
+def generate_cascade(det, pos, t0, energy=None, n_photons=None, d0=33, seed=31337):
     """
     Generate a single cascade with given amplitude and position and return time of detected photons.
 
@@ -37,7 +37,13 @@ def generate_cascade(det, pos, t0, energy, d0=33, seed=31337):
       d0: Decay constant for photon absorption [m]
       seed: int
     """
-    source = PhotonSource(pos, energy * Constants.photons_per_GeV, t0)
+
+    if energy is None and n_photons is None:
+        raise RuntimeError("Set either energy or n_photons")
+    if energy is not None:
+        n_photons = energy * Constants.photons_per_GeV
+
+    source = PhotonSource(pos, n_photons, t0)
     source_list = [source]
     record = MCRecord(
         "cascade", dejit_sources(source_list), {"energy": energy, "position": pos}
@@ -71,7 +77,9 @@ def generate_cascades(
         pos = sample_cylinder_volume(height, radius, 1, rng).squeeze()
         energy = np.power(10, rng.uniform(2, 5))
 
-        event, record = generate_cascade(det, pos, 0, energy, d0, seed + i)
+        event, record = generate_cascade(
+            det, pos, 0, energy=energy, d0=d0, seed=seed + i
+        )
         if ak.count(event) == 0:
             continue
         time_range = [

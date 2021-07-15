@@ -1,5 +1,12 @@
 from .constants import Constants
-from .detector import make_grid, make_hex_grid, Detector, generate_noise, trigger
+from .detector import (
+    make_grid,
+    make_hex_grid,
+    Detector,
+    generate_noise,
+    trigger,
+    make_line,
+)
 from .event_generation import (
     generate_cascade,
     generate_cascades,
