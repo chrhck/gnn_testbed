@@ -164,7 +164,9 @@ def make_hex_grid(
 
     for irow in range(0, n_side - 1):
         i_this_row = 2 * (n_side - 1) - irow
-        x_pos = np.linspace(-i_this_row / 2 * dist, i_this_row / 2 * dist, i_this_row)
+        x_pos = np.linspace(
+            -(i_this_row - 1) / 2 * dist, (i_this_row - 1) / 2 * dist, i_this_row
+        )
         y_pos = irow * dist
         for x in x_pos:
             modules += make_line(
@@ -174,7 +176,7 @@ def make_hex_grid(
 
         if irow != 0:
             x_pos = np.linspace(
-                -i_this_row / 2 * dist, i_this_row / 2 * dist, i_this_row
+                -(i_this_row - 1) / 2 * dist, (i_this_row - 1) / 2 * dist, i_this_row
             )
             y_pos = -irow * dist
 
