@@ -21,7 +21,7 @@ from .photon_propagation import PhotonSource, dejit_sources, generate_photons
 logger = logging.getLogger(__name__)
 
 
-def generate_cascade(det, pos, t0, energy=None, n_photons=None, d0=33, seed=31337):
+def generate_cascade(det, pos, t0, energy=None, n_photons=None, seed=31337, **kwargs):
     """
     Generate a single cascade with given amplitude and position and return time of detected photons.
 
@@ -34,10 +34,11 @@ def generate_cascade(det, pos, t0, energy=None, n_photons=None, d0=33, seed=3133
         Time of the cascade
       energy: float
         Energy of the cascade
-      d0: Decay constant for photon absorption [m]
       seed: int
-    """
+      kwargs: dict
+        kwargs passed to `generate_photons`
 
+    """
     if energy is None and n_photons is None:
         raise RuntimeError("Set either energy or n_photons")
     if energy is not None:
@@ -51,7 +52,11 @@ def generate_cascade(det, pos, t0, energy=None, n_photons=None, d0=33, seed=3133
     hit_times = ak.sort(
         ak.Array(
             generate_photons(
-                det.module_coords, det.module_efficiencies, List(source_list), seed=seed
+                det.module_coords,
+                det.module_efficiencies,
+                List(source_list),
+                seed=seed,
+                **kwargs
             )
         )
     )
@@ -108,6 +113,7 @@ def generate_realistic_track(
     seed=31337,
     rng=np.random.RandomState(31337),
     propagator=None,
+    **kwargs
 ):
     """
     Generate a realistic track using energy losses from PROPOSAL.
@@ -128,6 +134,8 @@ def generate_realistic_track(
       seed: int
       rng: RandomState
       propagator: Proposal propagator
+      kwargs: dict
+         kwargs passed to `generate_photons`
     """
     try:
         import proposal as pp
@@ -173,7 +181,11 @@ def generate_realistic_track(
     hit_times = ak.sort(
         ak.Array(
             generate_photons(
-                det.module_coords, det.module_efficiencies, List(sources), seed=seed
+                det.module_coords,
+                det.module_efficiencies,
+                List(sources),
+                seed=seed,
+                **kwargs
             )
         )
     )

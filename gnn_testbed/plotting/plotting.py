@@ -26,6 +26,7 @@ def plot_event(det, hit_times, record=None, plot_tfirst=False, plot_hull=False):
                 color=plot_target[mask],  # set color to an array/list of desired values
                 colorscale="Viridis",  # choose a colorscale
                 opacity=0.8,
+                showscale=True,
             ),
         ),
         go.Scatter3d(
@@ -55,7 +56,7 @@ def plot_event(det, hit_times, record=None, plot_tfirst=False, plot_hull=False):
                 y=positions[:, 1],
                 z=positions[:, 2],
                 mode="markers",
-                marker=dict(size=sizes, color="black", opacity=0.8, line=dict(width=0)),
+                marker=dict(size=sizes, color="black", opacity=0.5, line=dict(width=0)),
             )
         )
     if plot_hull:
@@ -77,9 +78,18 @@ def plot_event(det, hit_times, record=None, plot_tfirst=False, plot_hull=False):
                 opacity=0.2,
             )
         )
-    fig = go.Figure(data=traces)
-    fig.update_layout(showlegend=False)
+    fig = go.Figure(
+        data=traces,
+    )
+    fig.update_layout(
+        showlegend=False,
+        height=700,
+        width=1400,
+        coloraxis_showscale=True,
+    )
+    fig.update_coloraxes(colorbar_title=dict(text="log10(det. photons)"))
     fig.show()
+    return fig
 
 
 def plot_events(
