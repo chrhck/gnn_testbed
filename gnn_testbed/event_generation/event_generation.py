@@ -81,9 +81,7 @@ def generate_cascades(
         pos = sample_cylinder_volume(height, radius, 1, rng).squeeze()
         energy = np.power(10, rng.uniform(2, 5))
 
-        event, record = generate_cascade(
-            det, pos, 0, energy=energy, d0=d0, seed=seed + i
-        )
+        event, record = generate_cascade(det, pos, 0, energy=energy, seed=seed + i)
         if ak.count(event) == 0:
             continue
         time_range = [
