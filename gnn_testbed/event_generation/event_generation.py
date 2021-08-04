@@ -68,7 +68,6 @@ def generate_cascades(
     height,
     radius,
     nsamples,
-    d0=33,
     seed=31337,
 ):
     """Generate a sample of cascades, randomly sampling the positions in a cylinder of given radius and length."""
