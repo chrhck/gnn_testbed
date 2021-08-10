@@ -76,7 +76,7 @@ class Detector(object):
         return self._outer_cylinder
 
 
-def make_line(x, y, n_z, dist_z, rng, baseline_noise_rate, line_id):
+def make_line(x, y, n_z, dist_z, rng, baseline_noise_rate, line_id, efficiency=0.2):
     """
     Make a line of detector modules.
 
@@ -102,7 +102,9 @@ def make_line(x, y, n_z, dist_z, rng, baseline_noise_rate, line_id):
         noise_rate = (
             scipy.stats.gamma.rvs(1, 0.25, random_state=rng) * baseline_noise_rate
         )
-        mod = Module(pos, key=(line_id, i), noise_rate=noise_rate)
+        mod = Module(
+            pos, key=(line_id, i), noise_rate=noise_rate, efficiency=efficiency
+        )
         modules.append(mod)
     return modules
 
@@ -246,6 +248,13 @@ def sample_direction(n_samples, rng=np.random.RandomState(1337)):
     return samples
 
 
+def get_proj_area_for_zen(height, radius, coszen):
+    """Return projected area for cylinder."""
+    cap = np.pi * radius * radius
+    sides = 2 * radius * height
+    return cap * np.abs(coszen) + sides * np.sqrt(1.0 - coszen * coszen)
+
+
 def generate_noise(det, time_range, rng=np.random.RandomState(1337)):
     """Generate detector noise in a time range."""
     all_times_det = []
@@ -276,3 +285,30 @@ def trigger(det, event_times, mod_thresh=8, phot_thres=5):
     if ak.sum((hits_per_module > phot_thres)) > mod_thresh:
         return True
     return False
+
+
+"""
+def local_coinc(hit_times, lc_links, pmt_t=50, lc_t=500, smt_t=1000):
+
+    trigger_times = []
+    mod_ids = []
+    lc_c
+    for mid in range(len(hit_times)):
+        ts_l = ak.sort(ak.flatten(hit_times[lc_links[mid]]))
+        ts_mod = hit_times[mid]
+
+        # More than two hits within 50 ns
+        valid = (ts_mod[1:] - ts_mod[:-1]) < pmt_t
+
+        triggers = np.zeros(ak.sum(valid), dtype=np.bool)
+        for i, vhit in enumerate(ts_mod[valid]):
+
+            # At least one hit within 500ns on neighboring module
+            if np.any(np.abs(ts_l - vhit) < lc_t):
+                triggers[i] = True
+        trigger_times.append(ts_mod[valid][triggers])
+        mod_ids.append(np.ones(triggers.shape[0]) * mid)
+
+    trigger_times = ak.concatenate(trigger_times)
+    return ak.sum((trigger_times[1:] - trigger_times[:-1]) < smt_t)
+"""

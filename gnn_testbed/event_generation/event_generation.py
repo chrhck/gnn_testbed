@@ -162,9 +162,6 @@ def generate_realistic_track(
             continue
         sources.append(PhotonSource(p, e_loss * Constants.photons_per_GeV, t))
 
-    if not sources:
-        return None
-
     record = MCRecord(
         "realistic_track",
         dejit_sources(sources),
@@ -175,6 +172,10 @@ def generate_realistic_track(
             "direction": direc,
         },
     )
+
+    if not sources:
+        return ak.Array([[]]), record
+
     hit_times = ak.sort(
         ak.Array(
             generate_photons(
@@ -196,6 +197,10 @@ def generate_realistic_tracks(
     nsamples,
     seed=31337,
     propagator=None,
+    log_emin=2,
+    log_emax=6,
+    filter=False,
+    **kwargs
 ):
     """Generate realistic muon tracks."""
     rng = np.random.RandomState(seed)
@@ -210,7 +215,7 @@ def generate_realistic_tracks(
     i = 0
     while i < nsamples:
         pos = sample_cylinder_surface(height, radius, 1, rng).squeeze()
-        energy = np.power(10, rng.uniform(2, 6, size=1))
+        energy = np.power(10, rng.uniform(log_emin, log_emax, size=1))
         direc = sample_direction(1, rng).squeeze()
 
         # shift pos back by half the length:
@@ -226,20 +231,27 @@ def generate_realistic_tracks(
             seed=seed + i,
             rng=rng,
             propagator=propagator,
+            **kwargs
         )
-        if result is None:
-            continue
-        event, record = result
-        if ak.count(event) == 0:
-            continue
-        time_range = [
-            ak.min(ak.flatten(event)) - 1000,
-            ak.max(ak.flatten(event)) + 5000,
-        ]
-        noise = generate_noise(det, time_range)
-        event = ak.sort(ak.concatenate([event, noise], axis=1))
 
-        if trigger(det, event):
+        event, record = result
+        if ak.count(event) == 0 and filter:
+            continue
+
+        if ak.count(event) == 0:
+            time_range = [-1000, 5000]
+            noise = generate_noise(det, time_range)
+            event = ak.sort(noise, axis=1)
+
+        else:
+            time_range = [
+                ak.min(ak.flatten(event)) - 1000,
+                ak.max(ak.flatten(event)) + 5000,
+            ]
+            noise = generate_noise(det, time_range)
+            event = ak.sort(ak.concatenate([event, noise], axis=1))
+
+        if not filter or trigger(det, event):
             events.append(event)
             records.append(record)
             i += 1

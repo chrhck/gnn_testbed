@@ -6,6 +6,8 @@ from .detector import (
     generate_noise,
     trigger,
     make_line,
+    get_proj_area_for_zen,
+    sample_cylinder_surface,
 )
 from .event_generation import (
     generate_cascade,

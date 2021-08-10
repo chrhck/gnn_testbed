@@ -33,6 +33,12 @@ RUN apt-get update && \
 FROM node as pip_stuff
 RUN pip install torch-scatter torch-sparse torch-cluster torch-spline-conv -f https://pytorch-geometric.com/whl/torch-1.8.0+cu111.html
 RUN pip install torch-geometric jupyterlab awkward numba seaborn tqdm ipywidgets aquirdturtle_collapsible_headings plotly tensorboard matplotlib_inline
+RUN pip install shapely MCEq[CUDA]
+RUN apt-get -y install libgsl-dev pkg-config && \
+    mkdir -p /usr/local/lib/SQuIDS && \
+    cd /usr/local/lib/SQuIDS && \
+    git clone https://github.com/jsalvado/SQuIDS.git . && \
+    ./configure && make && make install
 RUN PATH=/usr/local/lib/nodejs/node-v14.17.0-linux-x64/bin:$PATH jupyter labextension install jupyterlab-plotly
 
 CMD tensorboard --port 8008 --logdir=/app/runs --bind_all & \
