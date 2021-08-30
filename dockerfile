@@ -33,15 +33,32 @@ RUN apt-get update && \
 FROM node as pip_stuff
 RUN pip install torch-scatter torch-sparse torch-cluster torch-spline-conv -f https://pytorch-geometric.com/whl/torch-1.8.0+cu111.html
 RUN pip install torch-geometric jupyterlab awkward numba seaborn tqdm ipywidgets aquirdturtle_collapsible_headings plotly tensorboard matplotlib_inline
-RUN pip install shapely MCEq[CUDA]
-RUN apt-get -y install libgsl-dev pkg-config && \
+RUN pip install shapely
+
+
+
+RUN apt-get -y install libgsl-dev pkg-config libhdf5-serial-dev libboost-all-dev python-dev && \
     mkdir -p /usr/local/lib/SQuIDS && \
     cd /usr/local/lib/SQuIDS && \
     git clone https://github.com/jsalvado/SQuIDS.git . && \
-    ./configure && make && make install
+    ./configure && make && make && \
+    mkdir -p /usr/local/lib/nuSQuIDS && \
+    cd /usr/local/lib/nuSQuIDS && \
+    git clone https://github.com/arguelles/nuSQuIDS.git . && \
+    ./configure --with-python-bindings --with-squids=/usr/local/lib/SQuIDS && \
+    cp /opt/conda/lib/libpython3.8.so /usr/local/lib && \
+    make && make install && LD_LIBRARY_PATH=/opt/conda/lib/:$LD_LIBRARY_PATH make python && make python-install
+
 RUN PATH=/usr/local/lib/nodejs/node-v14.17.0-linux-x64/bin:$PATH jupyter labextension install jupyterlab-plotly
 
+RUN mkdir -p /usr/local/lib/MCEq && cd /usr/local/lib/MCEq && \
+    git clone -b next_1_3_X https://github.com/afedynitch/MCEq.git . && \
+    pip install .[CUDA]
+COPY mceq_db_lext_dpm191_v131.h5 /opt/conda/lib/python3.8/site-packages/MCEq/data/
+#RUN pip install MCEq[CUDA]
+
+RUN python -c "from MCEq.core import MCEqRun"
 CMD tensorboard --port 8008 --logdir=/app/runs --bind_all & \
     PATH=/usr/local/lib/nodejs/node-v14.17.0-linux-x64/bin:$PATH \
-    PYTHONPATH=$PYTHONPATH:/opt/PROPOSAL/build/src/pyPROPOSAL \
+    PYTHONPATH=$PYTHONPATH:/opt/PROPOSAL/build/src/pyPROPOSAL:/usr/lib/nuSQuIDS/resources/python/bindings/ \
     jupyter lab --port=8888 --no-browser --ip=0.0.0.0 --allow-root --notebook-dir=/app

@@ -219,7 +219,7 @@ def generate_realistic_tracks(
         direc = sample_direction(1, rng).squeeze()
 
         # shift pos back by half the length:
-        pos = pos - track_length / 2 * direc
+        # pos = pos - track_length / 2 * direc
 
         result = generate_realistic_track(
             det,
