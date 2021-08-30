@@ -4,7 +4,7 @@ import logging
 import awkward as ak
 from numba.typed import List
 import numpy as np
-from tqdm.auto import tqdm
+from tqdm.auto import trange
 
 from .constants import Constants
 from .detector import (
@@ -21,7 +21,27 @@ from .photon_propagation import PhotonSource, dejit_sources, generate_photons
 logger = logging.getLogger(__name__)
 
 
-def generate_cascade(det, pos, t0, energy=None, n_photons=None, seed=31337, **kwargs):
+def simulate_noise(det, event):
+
+    if ak.count(event) == 0:
+        time_range = [-1000, 5000]
+        noise = generate_noise(det, time_range)
+        event = ak.sort(noise, axis=1)
+
+    else:
+        time_range = [
+            ak.min(ak.flatten(event)) - 1000,
+            ak.max(ak.flatten(event)) + 5000,
+        ]
+        noise = generate_noise(det, time_range)
+        event = ak.sort(ak.concatenate([event, noise], axis=1))
+
+    return event
+
+
+def generate_cascade(
+    det, pos, t0, energy=None, n_photons=None, seed=31337, pprop_extras=None
+):
     """
     Generate a single cascade with given amplitude and position and return time of detected photons.
 
@@ -56,7 +76,7 @@ def generate_cascade(det, pos, t0, energy=None, n_photons=None, seed=31337, **kw
                 det.module_efficiencies,
                 List(source_list),
                 seed=seed,
-                **kwargs
+                **pprop_extras
             )
         )
     )
@@ -64,38 +84,26 @@ def generate_cascade(det, pos, t0, energy=None, n_photons=None, seed=31337, **kw
 
 
 def generate_cascades(
-    det,
-    height,
-    radius,
-    nsamples,
-    seed=31337,
+    det, height, radius, nsamples, seed=31337, log_emin=2, log_emax=6, pprop_extras=None
 ):
     """Generate a sample of cascades, randomly sampling the positions in a cylinder of given radius and length."""
     rng = np.random.RandomState(seed)
 
     events = []
     records = []
-    i = 0
-    pbar = tqdm(total=nsamples)
-    while i < nsamples:
+
+    for i in trange(nsamples):
         pos = sample_cylinder_volume(height, radius, 1, rng).squeeze()
-        energy = np.power(10, rng.uniform(2, 5))
+        energy = np.power(10, rng.uniform(log_emin, log_emax))
 
-        event, record = generate_cascade(det, pos, 0, energy=energy, seed=seed + i)
-        if ak.count(event) == 0:
-            continue
-        time_range = [
-            ak.min(ak.flatten(event)) - 1000,
-            ak.max(ak.flatten(event)) + 5000,
-        ]
-        noise = generate_noise(det, time_range)
-        event = ak.sort(ak.concatenate([event, noise], axis=1))
+        event, record = generate_cascade(
+            det, pos, 0, energy=energy, seed=seed + i, pprop_extras=pprop_extras
+        )
+        event = simulate_noise(det, event)
 
-        if trigger(det, event):
-            events.append(event)
-            records.append(record)
-            i += 1
-            pbar.update()
+        events.append(event)
+        records.append(record)
+
     return events, records
 
 
@@ -110,7 +118,7 @@ def generate_realistic_track(
     seed=31337,
     rng=np.random.RandomState(31337),
     propagator=None,
-    **kwargs
+    pprop_extras=None,
 ):
     """
     Generate a realistic track using energy losses from PROPOSAL.
@@ -183,7 +191,7 @@ def generate_realistic_track(
                 det.module_efficiencies,
                 List(sources),
                 seed=seed,
-                **kwargs
+                **pprop_extras
             )
         )
     )
@@ -199,8 +207,7 @@ def generate_realistic_tracks(
     propagator=None,
     log_emin=2,
     log_emax=6,
-    filter=False,
-    **kwargs
+    pprop_extras=None,
 ):
     """Generate realistic muon tracks."""
     rng = np.random.RandomState(seed)
@@ -211,12 +218,29 @@ def generate_realistic_tracks(
     events = []
     records = []
 
-    pbar = tqdm(total=nsamples)
-    i = 0
-    while i < nsamples:
+    for i in trange(nsamples):
         pos = sample_cylinder_surface(height, radius, 1, rng).squeeze()
         energy = np.power(10, rng.uniform(log_emin, log_emax, size=1))
-        direc = sample_direction(1, rng).squeeze()
+
+        # determine the surface normal vectors given the samples position
+        # surface normal always points out
+
+        if pos[2] == height / 2:
+            # upper cap
+            area_norm = np.array([0, 0, 1])
+        elif pos[2] == -height / 2:
+            # lower cap
+            area_norm = np.array([0, 0, -1])
+        else:
+            area_norm = np.array(pos, copy=True)
+            area_norm[2] = 0
+            area_norm /= np.linalg.norm(area_norm)
+
+        orientation = 1
+        # Rejection sampling to generate only inward facing tracks
+        while orientation > 0:
+            direc = sample_direction(1, rng).squeeze()
+            orientation = np.dot(area_norm, direc)
 
         # shift pos back by half the length:
         # pos = pos - track_length / 2 * direc
@@ -231,31 +255,14 @@ def generate_realistic_tracks(
             seed=seed + i,
             rng=rng,
             propagator=propagator,
-            **kwargs
+            pprop_extras=pprop_extras,
         )
 
         event, record = result
-        if ak.count(event) == 0 and filter:
-            continue
+        event = simulate_noise(det, event)
 
-        if ak.count(event) == 0:
-            time_range = [-1000, 5000]
-            noise = generate_noise(det, time_range)
-            event = ak.sort(noise, axis=1)
-
-        else:
-            time_range = [
-                ak.min(ak.flatten(event)) - 1000,
-                ak.max(ak.flatten(event)) + 5000,
-            ]
-            noise = generate_noise(det, time_range)
-            event = ak.sort(ak.concatenate([event, noise], axis=1))
-
-        if not filter or trigger(det, event):
-            events.append(event)
-            records.append(record)
-            i += 1
-            pbar.update()
+        events.append(event)
+        records.append(record)
 
     return events, records
 
@@ -267,6 +274,9 @@ def generate_realistic_starting_tracks(
     nsamples,
     seed=31337,
     propagator=None,
+    log_emin=2,
+    log_emax=6,
+    pprop_extras=None,
 ):
     """Generate realistic starting tracks (cascade + track)."""
     rng = np.random.RandomState(seed)
@@ -277,15 +287,13 @@ def generate_realistic_starting_tracks(
     events = []
     records = []
 
-    i = 0
-    pbar = tqdm(total=nsamples)
-    while i < nsamples:
+    for i in trange(nsamples):
         pos = sample_cylinder_volume(height, radius, 1, rng).squeeze()
-        energy = np.power(10, rng.uniform(2, 6))
+        energy = np.power(10, rng.uniform(log_emin, log_emax))
         direc = sample_direction(1, rng).squeeze()
         inelas = rng.uniform(1e-6, 1 - 1e-6)
 
-        result = generate_realistic_track(
+        track, track_record = generate_realistic_track(
             det,
             pos,
             direc,
@@ -295,32 +303,23 @@ def generate_realistic_starting_tracks(
             seed=seed + i,
             rng=rng,
             propagator=propagator,
+            pprop_extras=pprop_extras,
         )
-        if result is None:
-            continue
-        event, record = result
-
-        # Generate the initial cascade
-        event_c, record_c = generate_cascade(
-            det, pos, 0, energy * (1 - inelas), seed=seed + i
+        cascade, cascade_record = generate_cascade(
+            det,
+            pos,
+            t0=0,
+            seed=seed + 1,
+            energy=energy * (1 - inelas),
+            pprop_extras=pprop_extras,
         )
-        event = ak.concatenate([event, event_c], axis=1)
-        record = record + record_c
-        if ak.count(event) == 0:
-            continue
 
-        time_range = [
-            ak.min(ak.flatten(event)) - 1000,
-            ak.max(ak.flatten(event)) + 5000,
-        ]
-        noise = generate_noise(det, time_range)
-        event = ak.sort(ak.concatenate([event, noise], axis=1))
+        event = ak.sort(ak.concatenate([track, cascade], axis=1))
+        record = track_record + cascade_record
 
-        if trigger(det, event):
-            events.append(event)
-            records.append(record)
-            i += 1
-            pbar.update()
+        event = simulate_noise(det, event)
+        events.append(event)
+        records.append(record)
 
     return events, records
 
