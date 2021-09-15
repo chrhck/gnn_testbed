@@ -21,8 +21,8 @@ modules += make_line(75, -65, dist_z, oms_per_line, rng, 16 * 1e-6, 0, efficienc
 modules += make_line(0, 65, dist_z, oms_per_line, rng, 16 * 1e-6, 0, efficiency=0.3)
 det = Detector(modules)
 
-height = 1100
-radius = 125
+height = 1500
+radius = 200
 
 seed = 31337
 
@@ -32,6 +32,7 @@ pprop_kwargs = dict(
 
 
 prop = proposal_setup()
+"""
 n_events = 1000
 cascades, cascade_records = generate_cascades(
     det,
@@ -47,7 +48,8 @@ pickle.dump(
     (cascades, cascade_records),
     open(os.path.join(outpath, "training_data_cascades_pone.pickle"), "wb"),
 )
-n_events = 20000
+"""
+n_events = 50000
 tracks, track_records = generate_realistic_tracks(
     det,
     height,
@@ -63,7 +65,7 @@ pickle.dump(
     (tracks, track_records),
     open(os.path.join(outpath, "training_data_tracks_pone.pickle"), "wb"),
 )
-
+"""
 n_events = 1000
 
 stracks, strack_records = generate_realistic_starting_tracks(
@@ -81,3 +83,4 @@ pickle.dump(
     (stracks, strack_records),
     open(os.path.join(outpath, "training_data_stracks_pone.pickle"), "wb"),
 )
+"""

@@ -86,6 +86,11 @@ def plot_event(det, hit_times, record=None, plot_tfirst=False, plot_hull=False):
         height=700,
         width=1400,
         coloraxis_showscale=True,
+        scene=dict(
+            xaxis=dict(range=[-1500, 1500]),
+            yaxis=dict(range=[-1500, 1500]),
+            zaxis=dict(range=[-1500, 1500]),
+        ),
     )
     fig.update_coloraxes(colorbar_title=dict(text="log10(det. photons)"))
     fig.show()

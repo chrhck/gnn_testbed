@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:latest as base
+FROM pytorch/pytorch:1.9.0-cuda11.1-cudnn8-runtime as base
 ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && \
     apt-get -y install \
@@ -7,7 +7,7 @@ RUN apt-get update && \
       git \
       libssl-dev \
       python3-dev \
-      wget && \
+      wget libgsl-dev pkg-config libhdf5-serial-dev libboost-all-dev python-dev && \
     rm -rf /var/lib/apt/lists/* && \
     wget https://github.com/Kitware/CMake/releases/download/v3.20.3/cmake-3.20.3.tar.gz && \
         tar -zxvf cmake-3.20.3.tar.gz && \
@@ -31,34 +31,40 @@ RUN apt-get update && \
     apt-get -y install npm
 
 FROM node as pip_stuff
-RUN pip install torch-scatter torch-sparse torch-cluster torch-spline-conv -f https://pytorch-geometric.com/whl/torch-1.8.0+cu111.html
-RUN pip install torch-geometric jupyterlab awkward numba seaborn tqdm ipywidgets aquirdturtle_collapsible_headings plotly tensorboard matplotlib_inline
-RUN pip install shapely
+RUN pip install --upgrade pip
+RUN pip install torch-scatter torch-sparse torch-cluster torch-spline-conv -f https://pytorch-geometric.com/whl/torch-1.9.0+cu111.html
+RUN pip install torch-geometric jupyterlab awkward numba seaborn tqdm ipywidgets aquirdturtle_collapsible_headings plotly pip install tensorflow tbp-nightly matplotlib_inline
+RUN pip install Geometry3D
+RUN pip install --upgrade "jax[cuda111]" -f https://storage.googleapis.com/jax-releases/jax_releases.html
+RUN PATH=/usr/local/lib/nodejs/node-v14.17.0-linux-x64/bin:$PATH jupyter labextension install jupyterlab-plotly
 
-
-
-RUN apt-get -y install libgsl-dev pkg-config libhdf5-serial-dev libboost-all-dev python-dev && \
-    mkdir -p /usr/local/lib/SQuIDS && \
+FROM pip_stuff as nusquids
+RUN mkdir -p /usr/local/lib/SQuIDS && \
     cd /usr/local/lib/SQuIDS && \
     git clone https://github.com/jsalvado/SQuIDS.git . && \
-    ./configure && make && make && \
+    ./configure && make && make install && \
     mkdir -p /usr/local/lib/nuSQuIDS && \
     cd /usr/local/lib/nuSQuIDS && \
     git clone https://github.com/arguelles/nuSQuIDS.git . && \
     ./configure --with-python-bindings --with-squids=/usr/local/lib/SQuIDS && \
-    cp /opt/conda/lib/libpython3.8.so /usr/local/lib && \
+    cp /opt/conda/lib/libpython3.7m.so /usr/local/lib && \
     make && make install && LD_LIBRARY_PATH=/opt/conda/lib/:$LD_LIBRARY_PATH make python && make python-install
 
-RUN PATH=/usr/local/lib/nodejs/node-v14.17.0-linux-x64/bin:$PATH jupyter labextension install jupyterlab-plotly
-
+FROM nusquids as mceq
 RUN mkdir -p /usr/local/lib/MCEq && cd /usr/local/lib/MCEq && \
     git clone -b next_1_3_X https://github.com/afedynitch/MCEq.git . && \
     pip install .[CUDA]
-COPY mceq_db_lext_dpm191_v131.h5 /opt/conda/lib/python3.8/site-packages/MCEq/data/
-#RUN pip install MCEq[CUDA]
-
+COPY mceq_db_lext_dpm191_v131.h5 /opt/conda/lib/python3.7/site-packages/MCEq/data/
 RUN python -c "from MCEq.core import MCEqRun"
-CMD tensorboard --port 8008 --logdir=/app/runs --bind_all & \
+
+RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/cuda-ubuntu1804.pin && \
+    mv cuda-ubuntu1804.pin /etc/apt/preferences.d/cuda-repository-pin-600 && \
+    wget https://developer.download.nvidia.com/compute/cuda/11.2.0/local_installers/cuda-repo-ubuntu1804-11-2-local_11.2.0-460.27.04-1_amd64.deb && \
+    dpkg -i cuda-repo-ubuntu1804-11-2-local_11.2.0-460.27.04-1_amd64.deb && \
+    apt-key add /var/cuda-repo-ubuntu1804-11-2-local/7fa2af80.pub && \
+    apt-get update && apt-get -y install cuda
+
+CMD tensorboard --port 8008 --logdir=/tmp/tensorboard --bind_all & \
     PATH=/usr/local/lib/nodejs/node-v14.17.0-linux-x64/bin:$PATH \
     PYTHONPATH=$PYTHONPATH:/opt/PROPOSAL/build/src/pyPROPOSAL:/usr/lib/nuSQuIDS/resources/python/bindings/ \
     jupyter lab --port=8888 --no-browser --ip=0.0.0.0 --allow-root --notebook-dir=/app
