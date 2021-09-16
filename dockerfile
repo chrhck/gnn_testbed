@@ -62,9 +62,13 @@ RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86
     wget https://developer.download.nvidia.com/compute/cuda/11.2.0/local_installers/cuda-repo-ubuntu1804-11-2-local_11.2.0-460.27.04-1_amd64.deb && \
     dpkg -i cuda-repo-ubuntu1804-11-2-local_11.2.0-460.27.04-1_amd64.deb && \
     apt-key add /var/cuda-repo-ubuntu1804-11-2-local/7fa2af80.pub && \
-    apt-get update && apt-get -y install cuda
+    apt-get update && apt-get -y install cuda && \
+    ln -s /usr/local/cuda-11/lib64/libcupti.so.11.2 /usr/local/cuda-11/lib64/libcupti.so.11.1
+
+RUN pip install git+https://github.com/thoglu/jammy_flows.git
+RUN echo "export PATH=/usr/local/lib/nodejs/node-v14.17.0-linux-x64/bin:${PATH}" >> /root/.bashrc && \
+    echo "export PYTHONPATH=${PYTHONPATH}:/opt/PROPOSAL/build/src/pyPROPOSAL:/usr/lib/nuSQuIDS/resources/python/bindings/" && \
+    echo "export LD_LIBRARY_PATH=/usr/local/cuda-11/lib64/:${LD_LIBRARY_PATH}"
 
 CMD tensorboard --port 8008 --logdir=/tmp/tensorboard --bind_all & \
-    PATH=/usr/local/lib/nodejs/node-v14.17.0-linux-x64/bin:$PATH \
-    PYTHONPATH=$PYTHONPATH:/opt/PROPOSAL/build/src/pyPROPOSAL:/usr/lib/nuSQuIDS/resources/python/bindings/ \
     jupyter lab --port=8888 --no-browser --ip=0.0.0.0 --allow-root --notebook-dir=/app

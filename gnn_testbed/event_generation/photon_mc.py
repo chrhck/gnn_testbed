@@ -1,18 +1,19 @@
 import jax.numpy as jnp
-from jax import jit, random, vmap
+from jax import jit, random, vmap, xmap
 from jax.lax import cond, fori_loop
 import numpy as np
 import jax
 
 
-def _photon_sphere_intersection(photon_x, photon_p, target_x, target_r, step_size):
-    p_normed = photon_p  # assume normed / photon_p_n
+def photon_sphere_intersection(photon_x, photon_p, target_x, target_r, step_size):
+    p_normed = photon_p  # assume normed
 
     a = jnp.dot(p_normed, (photon_x - target_x))
     b = a ** 2 - (jnp.linalg.norm(photon_x - target_x) ** 2 - target_r ** 2)
 
     isected = (b >= 0) & ((-a - jnp.sqrt(b)) > 0) & ((-a - jnp.sqrt(b)) < step_size)
 
+    # need to check intersection here, otherwise nan-gradients (sqrt(b) if b < 0)
     result = cond(
         isected,
         lambda _: (True, photon_x + (-a - jnp.sqrt(b)) * p_normed),
@@ -23,7 +24,7 @@ def _photon_sphere_intersection(photon_x, photon_p, target_x, target_r, step_siz
     return result
 
 
-photon_sphere_intersection = jit(_photon_sphere_intersection, static_argnums=[3])
+# photon_sphere_intersection = jit(_photon_sphere_intersection, static_argnums=[3])
 
 
 def scattering_function(subkey, g=0.9):
@@ -172,8 +173,17 @@ make_n_steps_v = jit(
     vmap(make_n_steps, in_axes=[None, 0], out_axes=0), static_argnums=[0]
 )
 
-psi_v = vmap(photon_sphere_intersection, in_axes=(0, 0, None, None, 0))
-psi_vv = vmap(psi_v, in_axes=(0, 0, None, None, 0))
+psi_v = (
+    vmap(
+        vmap(photon_sphere_intersection, in_axes=(0, 0, None, None, 0)),
+        in_axes=(0, 0, None, None, 0),
+    ))
+
+
+
+psi_vx = jit(
+    xmap(psi_v, in_axes=(None, None, 0, None, None),
+    axis_resources=[absstatic_argnums=[3],)
 
 
 def calc_intersections(positions, times, target_x, target_r, abs_len, sca_scale):
@@ -181,7 +191,7 @@ def calc_intersections(positions, times, target_x, target_r, abs_len, sca_scale)
     times = times * sca_scale
     delta_x = jnp.diff(positions, axis=1)
     step_w = jnp.linalg.norm(delta_x, axis=-1)
-    isec, isec_pos = psi_vv(
+    isec, isec_pos = psi_v(
         positions[:, :-1, :],
         (delta_x / step_w[..., np.newaxis]),
         target_x,
